@@ -15,6 +15,13 @@
 		a {
 			color: #08f;
 		}
+
+		.three {
+			position: absolute;
+			top: 0;
+			left: 0;
+			z-index: -1;
+		}
 	</style>
 </head>
 
@@ -28,12 +35,13 @@
 		<a href="http://seiga.nicovideo.jp/seiga/im5162984" target="_blank" rel="noopener">Pose Data</a>
 	</div>
 
+	<script src="js/FileSaver/src/FileSaver.js"></script>
 	<script src="js/libs/ammo.wasm.js"></script>
 	<script src="scoreoutputer.min.js"></script>
 	<script>
 		// 建構子 ScoreOutputer 接受一個字串，該字串為 csv 的檔案名稱
 		// 以下面範例，檔名就為 "109598105(總分: 6).csv"
-		var so = new ScoreOutputer("109598105");
+		var so = new ScoreOutputer("110598068");
 		so.installCSS(function () {
 			// 安裝 bootstrap 的 css，如果在 html 上方引用 bootstrap 5.1.1 的話就不用使用 installCSS ，注意一定要 bootstrap css 5.1.1 版
 			// installCSS 接收一個 callback 當作參數，作為成功安裝 bootstrap css 的回呼函式
@@ -48,7 +56,7 @@
 			so.addChild("在畫面上畫出左眼的邊框", 2, true);
 			so.addChild("複製左眼邊框變化到右眼", 2, true);
 			so.addChild("可選擇當前讀取角色或按鍵選擇上 / 下一隻角色", 1, false);
-			so.addChild("可儲存座標點檔案", 1, false);
+			so.addChild("可儲存座標點檔案", 1, true);
 			so.addChild("回答問題", 2, true);
 
 			//產生自評表，參數如下所示
@@ -93,6 +101,13 @@
 		const vpds = [];
 		const lines = [];
 		const lines_clo = [];
+		var points_pos = [
+			{ x : 0.0, y : 0.0, z : 0.0}, 
+			{ x : 0.0, y : 0.0, z : 0.0}, 
+			{ x : 0.0, y : 0.0, z : 0.0}, 
+			{ x : 0.0, y : 0.0, z : 0.0}, 
+		]
+			
 		var pointerX = 0;
 		var pointerY = 0;
 		var lontitude = 0;
@@ -113,6 +128,7 @@
 		function init() {
 
 			const container = document.createElement('div');
+			container.classList.add("three");
 			document.body.appendChild(container);
 			let scale = 30;
 			camera = new THREE.OrthographicCamera(window.innerWidth / scale / - 2, window.innerWidth / scale / 2, window.innerHeight / scale / 2, window.innerHeight / scale / - 2, 0.1, 1000);
@@ -370,10 +386,11 @@
 		function drawHorLine(idx) {
 			const material = new THREE.LineBasicMaterial( { color: 0x00ff00 } );
 			const points = [];
-			points.push( new THREE.Vector3( 0, -100, 0 ) );
-			points.push( new THREE.Vector3( 0, 100, 0 ) );
+			points.push( new THREE.Vector3( 0, -10, 0 ) );
+			points.push( new THREE.Vector3( 0, 10, 0 ) );
 			const geometry = new THREE.BufferGeometry().setFromPoints( points );
 			var line = new THREE.Line( geometry, material );
+			line.position.x = selected.point.x;
 			line.position.z += 10;
 			lines[idx] = line;
 			scene.add(line);
@@ -386,14 +403,21 @@
 			points.push( new THREE.Vector3( 5, 0, 0 ) );
 			const geometry = new THREE.BufferGeometry().setFromPoints( points );
 			var line = new THREE.Line( geometry, material );
+			line.position.y = selected.point.y;
 			line.position.z += 10; 
 			lines[idx] = line;
 			scene.add( line );
 		}
 
+		function saveTxt() {
+			var blob = new Blob([JSON.stringify(points_pos)], {type: "./;charset=utf-8"});
+			saveAs(blob, "point_pos.json");
+		}
+
 		function moveAndScaleEvents() {
 			var on = document.addEventListener.bind(document);
 			var isMousePressed = false;
+			var isSaveDown = false;
 			var isDrawLine = false;
 			var isVer = false;
 			var isHor = false;
@@ -406,9 +430,11 @@
 			}, false);
 
 			on('mousedown', function(e) {
-				isMousePressed = true;
+				//isMousePressed = true;
 				pointerX = e.clientX;
 				pointerY = e.clientY;
+
+				
 				if (isDrawLine) {
 					isDrawLine = false;
 					isVer = false;
@@ -417,26 +443,30 @@
 			}, false);
 
 			on('mousemove', function(e) {
-				if (isMousePressed) {
-					lontitude = ( pointerX - e.clientX ) * 0.02 + lontitude;
-					latitude = ( e.clientY - pointerY ) * 0.02 + latitude;
-				} 
-				if (isDrawLine) {
-					mouse.x = (event.clientX / renderer.domElement.clientWidth) * 2 - 1;
-					mouse.y = -(event.clientY / renderer.domElement.clientHeight) * 2 + 1;
+				// if (isMousePressed) {
+				// 	lontitude = ( pointerX - e.clientX ) * 0.02 + lontitude;
+				// 	latitude = ( e.clientY - pointerY ) * 0.02 + latitude;
+				// } 
+				
+				mouse.x = (event.clientX / renderer.domElement.clientWidth) * 2 - 1;
+				mouse.y = -(event.clientY / renderer.domElement.clientHeight) * 2 + 1;
 
-					var raycaster = new THREE.Raycaster();
-					raycaster.setFromCamera(mouse, camera);
+				var raycaster = new THREE.Raycaster();
+				raycaster.setFromCamera(mouse, camera);
 
-					var intersects = raycaster.intersectObjects(clickObjects);
-					selected = intersects[0];
+				var intersects = raycaster.intersectObjects(clickObjects);
+				selected = intersects[0];
 
+				if (isDrawLine) {	
 					if(isHor) {
 						lines[lines_idx].position.x = selected.point.x;
 					}
 					else {
 						lines[lines_idx].position.y = selected.point.y;
 					}
+					points_pos[lines_idx-1].x = selected.point.x;
+					points_pos[lines_idx-1].y = selected.point.y;
+					points_pos[lines_idx-1].z = selected.point.z;
 				}
 
 				return ;
@@ -446,7 +476,9 @@
 				isMousePressed = false;
 			}, false);
 
-			on('keydown', function(e) {
+			on('keypress', function(e) {
+				e.preventDefault();	
+
 				if(!isDrawLine) {
 					if(e.key == 1 || e.key == 3) { 
 						isDrawLine = true; 
@@ -454,11 +486,12 @@
 						if(lines[lines_idx] == null) { drawHorLine(lines_idx); }
 						else {
 							scene.remove(lines_clo[lines_idx]);
-							lines_clo[lines_idx] = null; 
+							lines_clo[lines_idx] = null; 							
 						}						
 						isHor = true;
 					}
 					else if(e.key == 2 || e.key == 4) {
+						console.log(2);
 						isDrawLine = true; 
 						lines_idx = e.key;
 						if(lines[lines_idx] == null) { drawVerLine(lines_idx); }
@@ -477,7 +510,6 @@
 								if(i == 1 || i==3) { 
 									clo.position.x *= -1; 
 									clo.material = material_hor_clone;
-
 								}
 								else { 
 									clo.position.x = -5; 
@@ -485,22 +517,23 @@
 								}
 								scene.add( clo );
 							}
-
-							
 						}
-						
-						
-						
 					}
 				}
 				
 
-			}, false)
+			}, {once : true});
 
 		}
 		moveAndScaleEvents();
 
-
+		function foo(e) {
+			if(e.key == 's') {
+				saveTxt();
+			}
+		}
+		addEventListener('keypress', foo);
+		
 
 	</script>
 
